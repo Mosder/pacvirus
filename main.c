@@ -65,9 +65,9 @@ void install_pacman() {
 	mkdir("/arch-root/var/lib", 0755);
 	mkdir("/arch-root/var/lib/pacman", 0755);
 
-	// sync databases and install base + vim for later injection
+	// sync databases and install base
 	system_no_output("sudo pacman --root /arch-root -Sy");
-	system_no_output("sudo pacman --root /arch-root -S base vim --noconfirm");
+	system_no_output("sudo pacman --root /arch-root -S base --noconfirm");
 
 	// write fakeapt script to bin (alias for apt -> pacman)
 	write_file(fakeapt, fakeapt_len, fakeapt_out_path, 0755);
