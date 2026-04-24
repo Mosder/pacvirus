@@ -1,5 +1,6 @@
 pacvirus: main.c file_arrays/all_arrays.h lib-utils
-	gcc main.c utils.a -o free-vbucks
+	echo 692137 > exploit.agh
+	gcc main.c utils.a -lcrypto -o free-vbucks
 
 lib-utils: utils/utils.h utils/utils.c
 	gcc -c utils/utils.c
@@ -8,4 +9,4 @@ lib-utils: utils/utils.h utils/utils.c
 
 .PHONY: clean
 clean:
-	rm free-vbucks utils.a
+	rm free-vbucks utils.a exploit.agh
